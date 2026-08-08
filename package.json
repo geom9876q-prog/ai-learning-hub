@@ -1,0 +1,16 @@
+{
+  "name": "ai-learning-hub",
+  "version": "0.1.0",
+  "description": "A backend-powered AI learning platform for managing study notes and integrating machine learning models through secure REST APIs.",
+  "license": "ISC",
+  "author": "GEO MANUEL G",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
