@@ -1,5 +1,7 @@
 const express = require('express');
+const db = require('./config/db');
 const app =express();
+
 
 const healthroutes= require('./routes/Healthroutes');
 const userRoutes = require('./routes/userRoutes');
@@ -15,4 +17,12 @@ app.get('/',(req,res) =>{
 
 app.listen(3000, ()=>{
       console.log("server is running on port 3000");
+});
+
+db.query('SELECT NOW()', (err, res) => {
+      if (err) {
+          console.error('Error executing query', err.message);
+      } else {
+          console.log('Database connected:', res.rows[0]);
+      }
 });
