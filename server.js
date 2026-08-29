@@ -5,11 +5,13 @@ const app =express();
 
 const healthroutes= require('./routes/Healthroutes');
 const userRoutes = require('./routes/userRoutes');
+const courseRoutes = require("./routes/courseRoutes");
 
 app.use(express.json());
 
 app.use(healthroutes);
 app.use("/api/users",userRoutes);
+app.use("/api/courses", courseRoutes);
 
 app.get('/',(req,res) =>{
       res.send("welcome to ai learning hub");
