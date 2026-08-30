@@ -1,5 +1,9 @@
+const authMiddleware = require("../middleware/authMiddleware");
+const adminMiddleware = require("../middleware/adminMiddleware");
+
 const express = require("express");
 const db = require("../config/db");
+
 
 const router = express.Router();
 
@@ -25,7 +29,7 @@ router.get("/", async (req, res) => {
     }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", authMiddleware,adminMiddleware, async (req, res) => {
 
     const { title, description } = req.body;
 
@@ -51,7 +55,7 @@ router.post("/", async (req, res) => {
     }
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", authMiddleware,adminMiddleware,async (req, res) => {
 
     const  id  = req.params.id;
     const { title, description } = req.body;
@@ -84,7 +88,7 @@ router.put("/:id", async (req, res) => {
     }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authMiddleware,adminMiddleware, async (req, res) => {
 
     const { id } = req.params;
 
