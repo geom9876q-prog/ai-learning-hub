@@ -144,4 +144,34 @@ router.get("/profile", authMiddleware, async (req, res) => {
     }
 });
 
+router.get("/my-courses", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT courses.id, courses.title, courses.description, enrollments.enrolled_at
+             FROM enrollments
+             JOIN courses
+             ON enrollments.course_id = courses.id
+             WHERE enrollments.user_id = $1
+             ORDER BY enrollments.enrolled_at DESC`,
+            [userId]
+        );
+
+        res.status(200).json({
+            courses: result.rows
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch enrolled courses"
+        });
+    }
+});
+
 module.exports = router;
