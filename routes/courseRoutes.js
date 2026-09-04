@@ -242,49 +242,6 @@ router.post(  "/:courseId/lessons", authMiddleware, adminMiddleware,async (req, 
     }
 );
 
-router.post( "/:courseId/lessons", authMiddleware,adminMiddleware, async (req, res) => {
-
-        const { courseId } = req.params;
-
-        const {
-            title,
-            description,
-            video_url,
-            lesson_order
-        } = req.body;
-
-        try {
-
-            const result = await db.query(
-                `INSERT INTO lessons
-                (course_id, title, description, video_url, lesson_order)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING *`,
-                [
-                    courseId,
-                    title,
-                    description,
-                    video_url,
-                    lesson_order
-                ]
-            );
-
-            res.status(201).json({
-                message: "Lesson created successfully",
-                lesson: result.rows[0]
-            });
-
-        } catch (error) {
-
-            console.error(error.message);
-
-            res.status(500).json({
-                message: "Failed to create lesson"
-            });
-        }
-    }
-);
-
 router.get("/:courseId/lessons", async (req, res) => {
 
     const { courseId } = req.params;
@@ -309,6 +266,114 @@ router.get("/:courseId/lessons", async (req, res) => {
 
         res.status(500).json({
             message: "Failed to fetch lessons"
+        });
+    }
+});
+
+router.get("/my-courses", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT courses.id,
+                    courses.title,
+                    courses.description,
+                    enrollments.enrolled_at,
+                    enrollments.completed_percentage
+             FROM enrollments
+             JOIN courses
+             ON enrollments.course_id = courses.id
+             WHERE enrollments.user_id = $1
+             ORDER BY enrollments.enrolled_at DESC`,
+            [userId]
+        );
+
+        res.status(200).json({
+            courses: result.rows
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch enrolled courses"
+        });
+    }
+});
+
+router.get("/:id/progress", authMiddleware, async (req, res) => {
+
+    const courseId = req.params.id;
+    const userId = req.user.id;
+
+    try {
+
+        // 1. Check enrollment
+        const enrollmentResult = await db.query(
+            `SELECT completed_percentage
+             FROM enrollments
+             WHERE user_id = $1
+             AND course_id = $2`,
+            [userId, courseId]
+        );
+
+        if (enrollmentResult.rows.length === 0) {
+            return res.status(403).json({
+                message: "You are not enrolled in this course"
+            });
+        }
+
+        // 2. Count total lessons
+        const totalLessonsResult = await db.query(
+            `SELECT COUNT(*) AS total
+             FROM lessons
+             WHERE course_id = $1`,
+            [courseId]
+        );
+
+        const totalLessons = Number(
+            totalLessonsResult.rows[0].total
+        );
+
+        // 3. Count completed lessons
+        const completedLessonsResult = await db.query(
+            `SELECT COUNT(*) AS completed
+             FROM lesson_completions lc
+             JOIN lessons l
+             ON lc.lesson_id = l.id
+             WHERE lc.user_id = $1
+             AND l.course_id = $2`,
+            [userId, courseId]
+        );
+
+        const completedLessons = Number(
+            completedLessonsResult.rows[0].completed
+        );
+
+        // 4. Calculate percentage
+        const completedPercentage =
+            totalLessons === 0
+                ? 0
+                : Math.round(
+                    (completedLessons / totalLessons) * 100
+                );
+
+        res.status(200).json({
+            course_id: Number(courseId),
+            completed_lessons: completedLessons,
+            total_lessons: totalLessons,
+            completed_percentage: completedPercentage
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch course progress"
         });
     }
 });
