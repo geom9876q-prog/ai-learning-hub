@@ -1,6 +1,7 @@
 const express = require("express");
 const db = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
+const { generateLessonSummary } = require("../services/aiService");
 
 const router = express.Router();
 
@@ -12,11 +13,11 @@ router.post("/:id/complete", authMiddleware, async (req, res) => {
     try {
 
         // 1. Check whether lesson exists
-        const lessonResult = await db.query(
-            `SELECT course_id
-             FROM lessons
-             WHERE id = $1`,
-            [lessonId]
+       const lessonResult = await db.query(
+             `SELECT course_id, title, description
+              FROM lessons
+                WHERE id = $1`,
+             [lessonId]
         );
 
         if (lessonResult.rows.length === 0) {
@@ -26,6 +27,8 @@ router.post("/:id/complete", authMiddleware, async (req, res) => {
         }
 
         const courseId = lessonResult.rows[0].course_id;
+        const lesson = lessonResult.rows[0];
+
 
         // 2. Check whether user is enrolled in the course
         const enrollmentResult = await db.query(
@@ -42,12 +45,20 @@ router.post("/:id/complete", authMiddleware, async (req, res) => {
             });
         }
 
+         const summary = await generateLessonSummary(lesson);
+
         // 3. Mark lesson as completed
         const completionResult = await db.query(
             `INSERT INTO lesson_completions (user_id, lesson_id)
              VALUES ($1, $2)
              RETURNING *`,
             [userId, lessonId]
+        );
+
+        await db.query(
+         `INSERT INTO learning_memory (user_id, lesson_id, summary)
+         VALUES ($1, $2, $3)`,
+        [userId, lessonId, summary]
         );
 
         // 4. Count total lessons in the course

@@ -174,4 +174,40 @@ router.get("/my-courses", authMiddleware, async (req, res) => {
     }
 });
 
+router.get("/learning-memory", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT
+                courses.title AS course_title,
+                lessons.title AS lesson_title,
+                learning_memory.summary,
+                learning_memory.created_at
+             FROM learning_memory
+             JOIN lessons
+             ON learning_memory.lesson_id = lessons.id
+             JOIN courses
+             ON lessons.course_id = courses.id
+             WHERE learning_memory.user_id = $1
+             ORDER BY learning_memory.created_at DESC`,
+            [userId]
+        );
+
+        res.status(200).json({
+            learning_memory: result.rows
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch learning memory"
+        });
+    }
+});
+
 module.exports = router;
