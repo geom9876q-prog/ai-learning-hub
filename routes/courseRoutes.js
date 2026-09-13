@@ -199,13 +199,14 @@ router.put("/:id/progress", authMiddleware, async (req, res) => {
     }
 });
 
-router.post(  "/:courseId/lessons", authMiddleware, adminMiddleware,async (req, res) => {
+router.post( "/:courseId/lessons", authMiddleware, adminMiddleware,async (req, res) => {
 
         const { courseId } = req.params;
 
         const {
             title,
             description,
+            content,
             video_url,
             lesson_order
         } = req.body;
@@ -214,13 +215,14 @@ router.post(  "/:courseId/lessons", authMiddleware, adminMiddleware,async (req, 
 
             const result = await db.query(
                 `INSERT INTO lessons
-                (course_id, title, description, video_url, lesson_order)
-                VALUES ($1, $2, $3, $4, $5)
+                (course_id, title, description, content, video_url, lesson_order)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING *`,
                 [
                     courseId,
                     title,
                     description,
+                    content,
                     video_url,
                     lesson_order
                 ]
@@ -249,7 +251,7 @@ router.get("/:courseId/lessons", async (req, res) => {
     try {
 
         const result = await db.query(
-            `SELECT id, title, description, video_url, lesson_order
+            `SELECT id, title, description, content, video_url, lesson_order
              FROM lessons
              WHERE course_id = $1
              ORDER BY lesson_order ASC`,

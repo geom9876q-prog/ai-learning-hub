@@ -4,33 +4,50 @@ const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY
 });
 
-async function generateLessonSummary(lesson) {
+         async function generateLessonSummary(lesson) {
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: `
-You are a learning assistant.
+         const response = await ai.models.generateContent({
+                model: "gemini-3.8-flash",
+                contents: `
+                You are a learning assistant helping a student remember what they studied.
 
-Create a short and simple study summary for this lesson.
+                Create a concise learning memory from the lesson below.
 
-Lesson title:
-${lesson.title}
+                Lesson title:
+                ${lesson.title}
 
-Lesson description:
-${lesson.description}
+                Lesson description:
+                ${lesson.description}
 
-Rules:
-- Keep the summary concise.
-- Explain the main concepts learned.
-- Use simple language.
-- Do not invent information that is not present in the lesson.
-- Return only the summary.
-        `
-    });
+                Lesson content:
+                ${lesson.content}
 
-    return response.text;
-}
+                Use exactly this format:
 
+                What you learned:
+                Write 1-2 simple sentences explaining what the learner learned.
+
+                Key concepts:
+                - List the most important concepts.
+                - Keep each point short.
+
+                Important points:
+                - Mention important technical details, rules, formulas, or complexity if they are present in the lesson.
+
+                Remember:
+                Write one short sentence containing the most important thing the learner should remember.
+
+                Rules:
+                - Use ONLY information provided in the lesson.
+                - Do not invent information.
+                - Use simple language.
+                - Keep the entire response concise.
+                - Do not add any other sections.
+                        `
+                    });
+
+            return response.text;
+        }
 module.exports = {
     generateLessonSummary
 };

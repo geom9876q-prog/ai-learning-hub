@@ -13,11 +13,11 @@ router.post("/:id/complete", authMiddleware, async (req, res) => {
     try {
 
         // 1. Check whether lesson exists
-       const lessonResult = await db.query(
-             `SELECT course_id, title, description
-              FROM lessons
-                WHERE id = $1`,
-             [lessonId]
+            const lessonResult = await db.query(
+            `SELECT course_id, title, description, content
+            FROM lessons
+            WHERE id = $1`,
+            [lessonId]
         );
 
         if (lessonResult.rows.length === 0) {
