@@ -1,20 +1,23 @@
 require("dotenv").config();
 
-const { generateLessonSummary } = require("./aiService");
+const { generateLearningPlan } = require("./aiService");
 
 async function testAI() {
 
-    const lesson = {
-        title: "Arrays Basics",
-        description: "Learn how arrays store multiple values and how to access elements using indexes."
+    const profile = {
+        career_goal: "Become a backend developer",
+        motivation: "I want to prepare for software engineering placements",
+        current_level: "Beginner",
+        days_to_goal: 60,
+        daily_study_minutes: 120
     };
 
     try {
 
-        const summary = await generateLessonSummary(lesson);
+        const plan = await generateLearningPlan(profile);
 
-        console.log("AI SUMMARY:");
-        console.log(summary);
+        console.log("AI LEARNING PLAN:");
+        console.log(plan);
 
     } catch (error) {
 

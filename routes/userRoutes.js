@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const db = require('../config/db');
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("../middleware/authMiddleware");
+const { generateLearningPlan } = require("../services/aiService");
 
 const router= express.Router();
 
@@ -206,6 +207,221 @@ router.get("/learning-memory", authMiddleware, async (req, res) => {
 
         res.status(500).json({
             message: "Failed to fetch learning memory"
+        });
+    }
+});
+
+router.post("/learner-profile", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    const {
+        career_goal,
+        motivation,
+        current_level,
+        days_to_goal,
+        daily_study_minutes
+    } = req.body;
+
+    if (!career_goal || !days_to_goal || !daily_study_minutes) {
+        return res.status(400).json({
+            message: "Career goal, days to goal and daily study time are required"
+        });
+    }
+
+    try {
+
+        const result = await db.query(
+            `INSERT INTO learner_profiles
+            (user_id, career_goal, motivation, current_level,
+             days_to_goal, daily_study_minutes)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *`,
+            [
+                userId,
+                career_goal,
+                motivation,
+                current_level,
+                days_to_goal,
+                daily_study_minutes
+            ]
+        );
+
+        res.status(201).json({
+            message: "Learner profile created successfully",
+            profile: result.rows[0]
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        if (error.code === "23505") {
+            return res.status(409).json({
+                message: "Learner profile already exists"
+            });
+        }
+
+        res.status(500).json({
+            message: "Failed to create learner profile"
+        });
+    }
+});
+
+router.get("/learner-profile", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT career_goal,
+                    motivation,
+                    current_level,
+                    days_to_goal,
+                    daily_study_minutes,
+                    created_at,
+                    updated_at
+             FROM learner_profiles
+             WHERE user_id = $1`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: "Learner profile not found"
+            });
+        }
+
+        res.status(200).json({
+            profile: result.rows[0]
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch learner profile"
+        });
+    }
+});
+
+router.post("/learning-plan", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        // 1. Get learner profile
+        const profileResult = await db.query(
+            `SELECT career_goal,
+                    motivation,
+                    current_level,
+                    days_to_goal,
+                    daily_study_minutes
+             FROM learner_profiles
+             WHERE user_id = $1`,
+            [userId]
+        );
+
+        if (profileResult.rows.length === 0) {
+            return res.status(404).json({
+                message: "Learner profile not found"
+            });
+        }
+
+        const profile = profileResult.rows[0];
+
+
+        // 2. Get available lessons
+        const lessonsResult = await db.query(
+            `SELECT
+                courses.id AS course_id,
+                courses.title AS course_title,
+                courses.description AS course_description,
+                lessons.id AS lesson_id,
+                lessons.title AS lesson_title,
+                lessons.description AS lesson_description,
+                lessons.lesson_order
+             FROM courses
+             JOIN lessons
+             ON courses.id = lessons.course_id
+             ORDER BY courses.id, lessons.lesson_order`
+        );
+
+
+        // 3. Get completed lessons
+        const completedResult = await db.query(
+            `SELECT lesson_id
+             FROM lesson_completions
+             WHERE user_id = $1`,
+            [userId]
+        );
+
+
+        // 4. Generate personalized plan
+        const plan = await generateLearningPlan(
+            profile,
+            lessonsResult.rows,
+            completedResult.rows
+        );
+
+        const planResult = await db.query(
+            `INSERT INTO learning_plans (user_id, plan)
+             VALUES ($1, $2)
+            RETURNING id, plan, created_at`,
+            [userId, plan]
+        );
+
+
+        // 5. Return the plan
+       res.status(201).json({
+        message: "Personalized learning plan generated successfully",
+         learning_plan: planResult.rows[0]
+     });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to generate learning plan"
+        });
+    }
+});
+
+router.get("/learning-plan", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT id, plan, created_at
+             FROM learning_plans
+             WHERE user_id = $1
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                message: "No learning plan found"
+            });
+        }
+
+        res.status(200).json({
+            learning_plan: result.rows[0]
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch learning plan"
         });
     }
 });
