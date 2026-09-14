@@ -3,7 +3,10 @@ const bcrypt = require("bcrypt");
 const db = require('../config/db');
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("../middleware/authMiddleware");
-const { generateLearningPlan } = require("../services/aiService");
+const {
+    generateLearningPlan,
+    generateRecoveryPlan
+} = require("../services/aiService");
 
 const router= express.Router();
 
@@ -422,6 +425,158 @@ router.get("/learning-plan", authMiddleware, async (req, res) => {
 
         res.status(500).json({
             message: "Failed to fetch learning plan"
+        });
+    }
+});
+
+router.get("/weak-areas", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT
+                lessons.id AS lesson_id,
+                lessons.title AS lesson_title,
+                quizzes.id AS quiz_id,
+                quizzes.title AS quiz_title,
+                quiz_attempts.score,
+                quiz_attempts.total_questions,
+                ROUND(
+                    (quiz_attempts.score::DECIMAL /
+                     quiz_attempts.total_questions) * 100
+                ) AS percentage
+             FROM quiz_attempts
+             JOIN quizzes
+             ON quiz_attempts.quiz_id = quizzes.id
+             JOIN lessons
+             ON quizzes.lesson_id = lessons.id
+             WHERE quiz_attempts.user_id = $1
+             ORDER BY percentage ASC`,
+            [userId]
+        );
+
+        const weakAreas = result.rows.filter(
+            attempt => Number(attempt.percentage) < 60
+        );
+
+        res.status(200).json({
+            weak_areas: weakAreas
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to detect weak areas"
+        });
+    }
+});
+
+router.get("/learning-recovery", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        // 1. Get learner profile
+        const profileResult = await db.query(
+            `SELECT career_goal,
+                    motivation,
+                    current_level,
+                    days_to_goal,
+                    daily_study_minutes
+             FROM learner_profiles
+             WHERE user_id = $1`,
+            [userId]
+        );
+
+        if (profileResult.rows.length === 0) {
+            return res.status(404).json({
+                message: "Learner profile not found"
+            });
+        }
+
+        const profile = profileResult.rows[0];
+
+
+        // 2. Get quiz performance
+        const result = await db.query(
+            `SELECT
+                lessons.id AS lesson_id,
+                lessons.title AS lesson_title,
+                quizzes.id AS quiz_id,
+                quizzes.title AS quiz_title,
+                quiz_attempts.score,
+                quiz_attempts.total_questions,
+                ROUND(
+                    (quiz_attempts.score::DECIMAL /
+                     quiz_attempts.total_questions) * 100
+                ) AS percentage
+             FROM quiz_attempts
+             JOIN quizzes
+             ON quiz_attempts.quiz_id = quizzes.id
+             JOIN lessons
+             ON quizzes.lesson_id = lessons.id
+             WHERE quiz_attempts.user_id = $1
+             ORDER BY percentage ASC`,
+            [userId]
+        );
+
+
+        // 3. Identify weak areas
+        const weakAreas = result.rows.filter(
+            attempt => Number(attempt.percentage) < 60
+        );
+
+
+        if (weakAreas.length === 0) {
+            return res.status(200).json({
+                message: "No weak areas detected",
+                learning_recovery: null
+            });
+        }
+
+
+        // 4. Get learning memory
+        const memoryResult = await db.query(
+            `SELECT
+                lessons.title AS lesson_title,
+                learning_memory.summary,
+                learning_memory.created_at
+             FROM learning_memory
+             JOIN lessons
+             ON learning_memory.lesson_id = lessons.id
+             WHERE learning_memory.user_id = $1
+             ORDER BY learning_memory.created_at DESC`,
+            [userId]
+        );
+
+
+        // 5. Generate recovery plan
+        const recoveryPlan = await generateRecoveryPlan(
+            profile,
+            weakAreas,
+            memoryResult.rows
+        );
+
+
+        res.status(200).json({
+            message: "Learning recovery plan generated successfully",
+
+            weak_areas: weakAreas,
+
+            learning_recovery: recoveryPlan
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to generate learning recovery plan"
         });
     }
 });

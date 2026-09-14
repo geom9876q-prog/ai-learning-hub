@@ -112,8 +112,77 @@ const ai = new GoogleGenAI({
 
             return response.text;
 }
+
+    async function generateRecoveryPlan(profile,weakAreas,learningMemory) {
+
+    const response = await ai.models.generateContent({
+
+        model: "gemini-3.8-flash",
+
+        contents: `
+        You are an AI learning recovery coach.
+
+        Your job is to help a learner recover from concepts they are struggling with.
+
+        LEARNER PROFILE:
+
+        Career goal:
+        ${profile.career_goal}
+
+        Motivation:
+        ${profile.motivation}
+
+        Current level:
+        ${profile.current_level}
+
+        Daily study time:
+        ${profile.daily_study_minutes} minutes
+
+
+        WEAK AREAS:
+
+        ${JSON.stringify(weakAreas, null, 2)}
+
+
+        LEARNING MEMORY:
+
+        ${JSON.stringify(learningMemory, null, 2)}
+
+
+        INSTRUCTIONS:
+
+        1. Identify the learner's main weak concepts using the provided weak areas.
+
+        2. Use the learning memory to understand what the learner has already studied.
+
+        3. Create a short recovery plan focused on the weak areas.
+
+        4. Do not recommend concepts that are unrelated to the weak areas.
+
+        5. Use only information provided in the learner data.
+
+        6. Keep the recovery plan realistic for the learner's available study time.
+
+        7. Include:
+        - What the learner should review
+        - What they should practice
+        - What they should do next
+
+        8. Explain briefly why the recovery step is useful.
+
+        9. Use simple language.
+
+        10. Do not invent courses, lessons, scores, or learner information.
+
+        11. Return only the recovery plan.
+                `
+            });
+
+    return response.text;
+}
         
 module.exports = {
     generateLessonSummary,
-    generateLearningPlan
+    generateLearningPlan,
+    generateRecoveryPlan
 };
