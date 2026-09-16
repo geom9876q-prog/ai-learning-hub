@@ -5,7 +5,8 @@ const jwt = require("jsonwebtoken");
 const authMiddleware = require("../middleware/authMiddleware");
 const {
     generateLearningPlan,
-    generateRecoveryPlan
+    generateRecoveryPlan,
+    generateRetentionQuiz
 } = require("../services/aiService");
 
 const router= express.Router();
@@ -580,5 +581,525 @@ router.get("/learning-recovery", authMiddleware, async (req, res) => {
         });
     }
 });
+
+router.get("/recommendation-reason/:lessonId",authMiddleware,async (req, res) => {
+
+        const userId = req.user.id;
+        const lessonId = req.params.lessonId;
+
+        try {
+
+            // 1. Get lesson information
+            const lessonResult = await db.query(
+                `SELECT
+                    lessons.id,
+                    lessons.title,
+                    courses.title AS course_title
+                 FROM lessons
+                 JOIN courses
+                 ON lessons.course_id = courses.id
+                 WHERE lessons.id = $1`,
+                [lessonId]
+            );
+
+            if (lessonResult.rows.length === 0) {
+                return res.status(404).json({
+                    message: "Lesson not found"
+                });
+            }
+
+            const lesson = lessonResult.rows[0];
+
+
+            // 2. Check whether learner completed it
+            const completionResult = await db.query(
+                `SELECT id
+                 FROM lesson_completions
+                 WHERE user_id = $1
+                 AND lesson_id = $2`,
+                [userId, lessonId]
+            );
+
+            const completed = completionResult.rows.length > 0;
+
+
+            // 3. Get quiz performance
+            const quizResult = await db.query(
+                `SELECT
+                    quiz_attempts.score,
+                    quiz_attempts.total_questions,
+                    ROUND(
+                        (quiz_attempts.score::DECIMAL /
+                         quiz_attempts.total_questions) * 100
+                    ) AS percentage
+                 FROM quiz_attempts
+                 JOIN quizzes
+                 ON quiz_attempts.quiz_id = quizzes.id
+                 WHERE quiz_attempts.user_id = $1
+                 AND quizzes.lesson_id = $2
+                 ORDER BY quiz_attempts.attempted_at DESC
+                 LIMIT 1`,
+                [userId, lessonId]
+            );
+
+
+            let quizPerformance = null;
+
+            if (quizResult.rows.length > 0) {
+                quizPerformance = quizResult.rows[0];
+            }
+
+
+            // 4. Build recommendation reasons
+            const reasons = [];
+
+            if (!completed) {
+                reasons.push(
+                    "You have not completed this lesson yet."
+                );
+            }
+
+            if (
+                quizPerformance &&
+                Number(quizPerformance.percentage) < 60
+            ) {
+                reasons.push(
+                    `Your latest quiz score was ${quizPerformance.percentage}%, indicating that you may need more practice with this topic.`
+                );
+            }
+
+            if (quizPerformance &&
+                Number(quizPerformance.percentage) >= 60
+            ) {
+                reasons.push(
+                    `You have already attempted the quiz and scored ${quizPerformance.percentage}%.`
+                );
+            }
+
+
+            if (reasons.length === 0) {
+                reasons.push(
+                    "This lesson is part of your available learning path."
+                );
+            }
+
+
+            res.status(200).json({
+                lesson: {
+                    id: lesson.id,
+                    title: lesson.title,
+                    course: lesson.course_title
+                },
+
+                recommendation_reasons: reasons
+            });
+
+        } catch (error) {
+
+            console.error(error.message);
+
+            res.status(500).json({
+                message: "Failed to generate recommendation reason"
+            });
+        }
+    }
+);
+
+router.get("/next-recommendation", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+
+        // 1. Find the learner's weakest topic
+        const weakResult = await db.query(
+            `SELECT
+                lessons.id AS lesson_id,
+                lessons.title AS lesson_title,
+                ROUND(
+                    (quiz_attempts.score::DECIMAL /
+                     quiz_attempts.total_questions) * 100
+                ) AS percentage
+             FROM quiz_attempts
+             JOIN quizzes
+             ON quiz_attempts.quiz_id = quizzes.id
+             JOIN lessons
+             ON quizzes.lesson_id = lessons.id
+             WHERE quiz_attempts.user_id = $1
+             AND (
+                 quiz_attempts.score::DECIMAL /
+                 quiz_attempts.total_questions
+             ) < 0.60
+             ORDER BY percentage ASC
+             LIMIT 1`,
+            [userId]
+        );
+
+        // 2. If weak topic exists → recommend recovery
+        if (weakResult.rows.length > 0) {
+
+            const weakLesson = weakResult.rows[0];
+
+            return res.status(200).json({
+                message: "Recovery recommendation generated",
+                recommendation: {
+                    type: "recovery",
+                    lesson_id: weakLesson.lesson_id,
+                    lesson_title: weakLesson.lesson_title,
+                    reason: `Your quiz score was ${weakLesson.percentage}%. You should review this topic.`
+                }
+            });
+        }
+
+        // 3. No weak topic → find incomplete lessons
+        const lessonsResult = await db.query(
+            `SELECT
+                lessons.id AS lesson_id,
+                lessons.title AS lesson_title,
+                lessons.description AS lesson_description,
+                lessons.lesson_order,
+                courses.id AS course_id,
+                courses.title AS course_title
+             FROM enrollments
+             JOIN courses
+             ON enrollments.course_id = courses.id
+             JOIN lessons
+             ON courses.id = lessons.course_id
+             LEFT JOIN lesson_completions
+             ON lessons.id = lesson_completions.lesson_id
+             AND lesson_completions.user_id = $1
+             WHERE enrollments.user_id = $1
+             AND lesson_completions.id IS NULL
+             ORDER BY courses.id, lessons.lesson_order`,
+            [userId]
+        );
+
+        // 4. No incomplete lessons → everything is completed
+        if (lessonsResult.rows.length === 0) {
+
+            return res.status(200).json({
+                message: "You have completed all available lessons",
+                recommendation: null
+            });
+        }
+
+        // 5. Recommend the next incomplete lesson
+        const recommendation = lessonsResult.rows[0];
+
+        res.status(200).json({
+            message: "Next recommendation generated successfully",
+            recommendation: {
+                type: "next_lesson",
+                lesson_id: recommendation.lesson_id,
+                lesson_title: recommendation.lesson_title,
+                lesson_description: recommendation.lesson_description,
+                course_id: recommendation.course_id,
+                course_title: recommendation.course_title
+            }
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to generate next recommendation"
+        });
+    }
+});
+
+router.get("/retention-check", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT
+                lessons.id AS lesson_id,
+                lessons.title AS lesson_title,
+                lessons.description AS lesson_description,
+                lesson_completions.completed_at,
+                retention_checks.checked_at
+             FROM lesson_completions
+             JOIN lessons
+             ON lesson_completions.lesson_id = lessons.id
+             LEFT JOIN retention_checks
+             ON lesson_completions.lesson_id = retention_checks.lesson_id
+             AND retention_checks.user_id = $1
+             WHERE lesson_completions.user_id = $1
+             AND lesson_completions.completed_at <= CURRENT_TIMESTAMP - INTERVAL '30 days'
+             AND (
+                 retention_checks.checked_at IS NULL
+                 OR retention_checks.checked_at <= CURRENT_TIMESTAMP - INTERVAL '30 days'
+             )
+             ORDER BY lesson_completions.completed_at ASC`,
+            [userId]
+        );
+
+        res.status(200).json({
+            message: "Retention check data fetched successfully",
+            lessons_due_for_review: result.rows
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch retention check data"
+        });
+    }
+});
+
+router.post( "/retention-session/:lessonId", authMiddleware,async (req, res) => {
+
+        const userId = req.user.id;
+        const lessonId = req.params.lessonId;
+
+        try {
+
+            // 1. Get the lesson
+            const lessonResult = await db.query(
+                `SELECT
+                    id,
+                    title,
+                    description,
+                    content
+                 FROM lessons
+                 WHERE id = $1`,
+                [lessonId]
+            );
+
+            if (lessonResult.rows.length === 0) {
+                return res.status(404).json({
+                    message: "Lesson not found"
+                });
+            }
+
+            const lesson = lessonResult.rows[0];
+
+            // 2. Check whether the user completed the lesson
+            const completionResult = await db.query(
+                `SELECT completed_at
+                 FROM lesson_completions
+                 WHERE user_id = $1
+                 AND lesson_id = $2`,
+                [userId, lessonId]
+            );
+
+            if (completionResult.rows.length === 0) {
+                return res.status(403).json({
+                    message: "You have not completed this lesson"
+                });
+            }
+
+            // 3. Check whether 30 days have passed
+            const completedAt = completionResult.rows[0].completed_at;
+
+            const completedDate = new Date(completedAt);
+            const currentDate = new Date();
+
+            const differenceInDays =
+                (currentDate - completedDate) /
+                (1000 * 60 * 60 * 24);
+
+            if (differenceInDays < 30) {
+                return res.status(400).json({
+                    message: "This lesson is not due for retention review yet"
+                });
+            }
+
+                    await db.query(
+            `DELETE FROM retention_questions
+            WHERE user_id = $1
+            AND lesson_id = $2`,
+            [userId, lessonId]
+        );
+
+            // 4. Generate revision session using Gemini
+            const retentionSession =
+                await generateRetentionQuiz(lesson);
+
+            // 5. Store generated questions
+            const savedQuestions = [];
+
+            for (const question of retentionSession.questions) {
+
+                const questionResult = await db.query(
+                    `INSERT INTO retention_questions
+                    (
+                        user_id,
+                        lesson_id,
+                        question,
+                        option_a,
+                        option_b,
+                        option_c,
+                        option_d,
+                        correct_option
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    RETURNING id, question, option_a, option_b, option_c, option_d`,
+                    [
+                        userId,
+                        lessonId,
+                        question.question,
+                        question.option_a,
+                        question.option_b,
+                        question.option_c,
+                        question.option_d,
+                        question.correct_option
+                    ]
+                );
+
+                savedQuestions.push(questionResult.rows[0]);
+            }
+
+            // 6. Return the generated session
+            res.status(200).json({
+                message: "Retention session generated successfully",
+
+                lesson: {
+                    id: lesson.id,
+                    title: lesson.title
+                },
+
+                notes: retentionSession.notes,
+
+                questions: savedQuestions
+            });
+
+        } catch (error) {
+
+            console.error(error.message);
+
+            res.status(500).json({
+                message: "Failed to generate retention session"
+            });
+        }
+    }
+);
+
+router.post(
+    "/retention-session/:lessonId/submit",
+    authMiddleware,
+    async (req, res) => {
+
+        const userId = req.user.id;
+        const lessonId = req.params.lessonId;
+        const { answers } = req.body;
+
+        try {
+
+            // 1. Validate answers
+            if (!Array.isArray(answers) || answers.length !== 3) {
+                return res.status(400).json({
+                    message: "Exactly 3 answers are required"
+                });
+            }
+
+            // 2. Get the retention questions from DB
+            const questionsResult = await db.query(
+                `SELECT
+                    id,
+                    correct_option
+                 FROM retention_questions
+                 WHERE user_id = $1
+                 AND lesson_id = $2
+                 ORDER BY id DESC
+                 LIMIT 3`,
+                [userId, lessonId]
+            );
+
+            if (questionsResult.rows.length !== 3) {
+                return res.status(404).json({
+                    message: "Retention questions not found"
+                });
+            }
+
+            // 3. Calculate score
+            let score = 0;
+
+            for (const question of questionsResult.rows) {
+
+                const userAnswer = answers.find(
+                    answer => Number(answer.question_id) === question.id
+                );
+
+                if (
+                    userAnswer &&
+                    userAnswer.answer === question.correct_option
+                ) {
+                    score++;
+                }
+            }
+
+            const totalQuestions = questionsResult.rows.length;
+
+            // 4. Determine retention status
+            let status;
+
+            if (score === 3) {
+                status = "retained";
+            } else if (score === 2) {
+                status = "needs_light_revision";
+            } else {
+                status = "needs_recovery";
+            }
+
+            // 5. Save result
+            const result = await db.query(
+                `INSERT INTO retention_checks
+                (
+                    user_id,
+                    lesson_id,
+                    score,
+                    total_questions
+                )
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (user_id, lesson_id)
+                DO UPDATE SET
+                    score = EXCLUDED.score,
+                    total_questions = EXCLUDED.total_questions,
+                    checked_at = CURRENT_TIMESTAMP
+                RETURNING *`,
+                [
+                    userId,
+                    lessonId,
+                    score,
+                    totalQuestions
+                ]
+            );
+
+            await db.query(
+                `DELETE FROM retention_questions
+                WHERE user_id = $1
+                AND lesson_id = $2`,
+                [userId, lessonId]
+            );
+
+            // 6. Send result
+            res.status(200).json({
+                message: "Retention check completed successfully",
+
+                result: {
+                    score: score,
+                    total_questions: totalQuestions,
+                    percentage: Math.round(
+                        (score / totalQuestions) * 100
+                    ),
+                    status: status,
+                    checked_at: result.rows[0].checked_at
+                }
+            });
+
+        } catch (error) {
+
+            console.error(error.message);
+
+            res.status(500).json({
+                message: "Failed to submit retention check"
+            });
+        }
+    }
+);
 
 module.exports = router;

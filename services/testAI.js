@@ -1,30 +1,26 @@
 require("dotenv").config();
 
-const { generateLearningPlan } = require("./aiService");
+const { generateLearningPlan,
+        generateRetentionQuiz
+ } = require("./aiService");
 
-async function testAI() {
+  async function testRetentionQuiz() {
 
-    const profile = {
-        career_goal: "Become a backend developer",
-        motivation: "I want to prepare for software engineering placements",
-        current_level: "Beginner",
-        days_to_goal: 60,
-        daily_study_minutes: 120
+    const lesson = {
+        title: "Binary Search",
+        description: "Searching for an element in a sorted array.",
+        content: `
+        Binary Search works on a sorted array.
+        It compares the target with the middle element.
+        If the target is smaller, search the left half.
+        If the target is larger, search the right half.
+        The time complexity is O(log n).
+        `
     };
 
-    try {
+    const result = await generateRetentionQuiz(lesson);
 
-        const plan = await generateLearningPlan(profile);
-
-        console.log("AI LEARNING PLAN:");
-        console.log(plan);
-
-    } catch (error) {
-
-        console.error("AI ERROR:");
-        console.error(error.message);
-
-    }
+    console.log(JSON.stringify(result, null, 2));
 }
 
-testAI();
+testRetentionQuiz();

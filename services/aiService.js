@@ -7,7 +7,7 @@ const ai = new GoogleGenAI({
          async function generateLessonSummary(lesson) {
 
          const response = await ai.models.generateContent({
-                model: "gemini-3.8-flash",
+               model: "gemini-3.6-flash",
                 contents: `
                 You are a learning assistant helping a student remember what they studied.
 
@@ -51,7 +51,7 @@ const ai = new GoogleGenAI({
 
     async function generateLearningPlan(profile,availableLessons,completedLessons) {
     const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
+       model: "gemini-3.6-flash",
 
         contents: `
         You are a personalized learning coach for AI Learning Hub.
@@ -117,7 +117,7 @@ const ai = new GoogleGenAI({
 
     const response = await ai.models.generateContent({
 
-        model: "gemini-3.8-flash",
+       model: "gemini-3.6-flash",
 
         contents: `
         You are an AI learning recovery coach.
@@ -180,9 +180,67 @@ const ai = new GoogleGenAI({
 
     return response.text;
 }
+
+     async function generateRetentionQuiz(lesson) {
+
+    const prompt = `
+    You are an AI learning assistant.
+
+    The learner studied the following lesson more than 30 days ago.
+
+    Lesson title:
+    ${lesson.title}
+
+    Lesson description:
+    ${lesson.description || ""}
+
+    Lesson content:
+    ${lesson.content || ""}
+
+    Create a short retention revision session.
+
+    Requirements:
+
+    1. Create concise revision notes covering the most important concepts.
+    2. Create exactly 3 multiple-choice questions.
+    3. Questions should test understanding, not just memorization.
+    4. Each question must have exactly 4 options.
+    5. Provide the correct option.
+    6. Use ONLY the information from the lesson.
+    7. Do not introduce concepts that are not present in the lesson.
+
+    Return ONLY valid JSON in this exact structure:
+
+    {
+        "notes": "...",
+        "questions": [
+            {
+                "question": "...",
+                "option_a": "...",
+                "option_b": "...",
+                "option_c": "...",
+                "option_d": "...",
+                "correct_option": "A"
+            }
+        ]
+    }
+    `;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt
+    });
+
+    let text = response.text;
+
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    return JSON.parse(text);
+}  
         
 module.exports = {
     generateLessonSummary,
     generateLearningPlan,
-    generateRecoveryPlan
+    generateRecoveryPlan,
+    generateRetentionQuiz
 };
