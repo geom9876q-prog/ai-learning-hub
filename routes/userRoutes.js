@@ -9,6 +9,10 @@ const {
     generateRetentionQuiz
 } = require("../services/aiService");
 
+const {
+    getNextRecommendation
+} = require("../services/recommendationService");
+
 const router= express.Router();
 
 router.post('/register', async(req,res) => {
@@ -211,6 +215,56 @@ router.get("/learning-memory", authMiddleware, async (req, res) => {
 
         res.status(500).json({
             message: "Failed to fetch learning memory"
+        });
+    }
+});
+
+router.get("/where-i-left-off", authMiddleware, async (req, res) => {
+
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT
+                courses.id AS course_id,
+                courses.title AS course_title,
+                lessons.id AS lesson_id,
+                lessons.title AS lesson_title,
+                learning_memory.summary,
+                lesson_completions.completed_at
+             FROM lesson_completions
+             JOIN lessons
+             ON lesson_completions.lesson_id = lessons.id
+             JOIN courses
+             ON lessons.course_id = courses.id
+             LEFT JOIN learning_memory
+             ON learning_memory.user_id = $1
+             AND learning_memory.lesson_id = lessons.id
+             WHERE lesson_completions.user_id = $1
+             ORDER BY lesson_completions.completed_at DESC
+             LIMIT 1`,
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+
+            return res.status(404).json({
+                message: "No completed lessons found"
+            });
+        }
+
+        res.status(200).json({
+            message: "Where I left off fetched successfully",
+            where_i_left_off: result.rows[0]
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch where I left off"
         });
     }
 });
@@ -706,75 +760,14 @@ router.get("/recommendation-reason/:lessonId",authMiddleware,async (req, res) =>
 );
 
 router.get("/next-recommendation", authMiddleware, async (req, res) => {
+
     const userId = req.user.id;
 
     try {
 
-        // 1. Find the learner's weakest topic
-        const weakResult = await db.query(
-            `SELECT
-                lessons.id AS lesson_id,
-                lessons.title AS lesson_title,
-                ROUND(
-                    (quiz_attempts.score::DECIMAL /
-                     quiz_attempts.total_questions) * 100
-                ) AS percentage
-             FROM quiz_attempts
-             JOIN quizzes
-             ON quiz_attempts.quiz_id = quizzes.id
-             JOIN lessons
-             ON quizzes.lesson_id = lessons.id
-             WHERE quiz_attempts.user_id = $1
-             AND (
-                 quiz_attempts.score::DECIMAL /
-                 quiz_attempts.total_questions
-             ) < 0.60
-             ORDER BY percentage ASC
-             LIMIT 1`,
-            [userId]
-        );
+        const recommendation = await getNextRecommendation(userId);
 
-        // 2. If weak topic exists → recommend recovery
-        if (weakResult.rows.length > 0) {
-
-            const weakLesson = weakResult.rows[0];
-
-            return res.status(200).json({
-                message: "Recovery recommendation generated",
-                recommendation: {
-                    type: "recovery",
-                    lesson_id: weakLesson.lesson_id,
-                    lesson_title: weakLesson.lesson_title,
-                    reason: `Your quiz score was ${weakLesson.percentage}%. You should review this topic.`
-                }
-            });
-        }
-
-        // 3. No weak topic → find incomplete lessons
-        const lessonsResult = await db.query(
-            `SELECT
-                lessons.id AS lesson_id,
-                lessons.title AS lesson_title,
-                lessons.description AS lesson_description,
-                lessons.lesson_order,
-                courses.id AS course_id,
-                courses.title AS course_title
-             FROM enrollments
-             JOIN courses
-             ON enrollments.course_id = courses.id
-             JOIN lessons
-             ON courses.id = lessons.course_id
-             LEFT JOIN lesson_completions
-             ON lessons.id = lesson_completions.lesson_id
-             AND lesson_completions.user_id = $1
-             WHERE enrollments.user_id = $1
-             AND lesson_completions.id IS NULL
-             ORDER BY courses.id, lessons.lesson_order`,
-            [userId]
-        );
-
-        // 4. No incomplete lessons → everything is completed
-        if (lessonsResult.rows.length === 0) {
+        if (!recommendation) {
 
             return res.status(200).json({
                 message: "You have completed all available lessons",
@@ -782,19 +775,9 @@ router.get("/next-recommendation", authMiddleware, async (req, res) => {
             });
         }
 
-        // 5. Recommend the next incomplete lesson
-        const recommendation = lessonsResult.rows[0];
-
         res.status(200).json({
-            message: "Next recommendation generated successfully",
-            recommendation: {
-                type: "next_lesson",
-                lesson_id: recommendation.lesson_id,
-                lesson_title: recommendation.lesson_title,
-                lesson_description: recommendation.lesson_description,
-                course_id: recommendation.course_id,
-                course_title: recommendation.course_title
-            }
+            message: "Recommendation generated successfully",
+            recommendation: recommendation
         });
 
     } catch (error) {
@@ -802,10 +785,11 @@ router.get("/next-recommendation", authMiddleware, async (req, res) => {
         console.error(error.message);
 
         res.status(500).json({
-            message: "Failed to generate next recommendation"
+            message: "Failed to generate recommendation"
         });
     }
 });
+
 
 router.get("/retention-check", authMiddleware, async (req, res) => {
     const userId = req.user.id;
