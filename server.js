@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require("cors");
 const db = require('./config/db');
 const app =express();
 
@@ -8,6 +9,7 @@ const userRoutes = require('./routes/userRoutes');
 const courseRoutes = require("./routes/courseRoutes");
 const lessonRoutes = require("./routes/lessonRoutes");
 
+app.use(cors());
 app.use(express.json());
 
 app.use(healthroutes);

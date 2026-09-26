@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Login - AI Learning Hub</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <nav class="navbar">
+
+        <div class="logo">
+            AI Learning Hub
+        </div>
+
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="login.html" class="active">Login</a>
+            <a href="signup.html" class="signup-btn">Sign Up</a>
+        </div>
+
+    </nav>
+
+
+    <main class="auth-page">
+
+        <div class="auth-card">
+
+            <p class="section-tag">WELCOME BACK</p>
+
+            <h1>Login to your account</h1>
+
+            <p class="auth-description">
+                Continue your personalized learning journey.
+            </p>
+
+
+            <form id="loginForm">
+
+                <div class="form-group">
+
+                    <label for="email">Email</label>
+
+                    <input
+                        type="email"
+                        id="email"
+                        placeholder="Enter your email"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="password">Password</label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        placeholder="Enter your password"
+                        required
+                    >
+
+                </div>
+
+
+                <button type="submit" class="auth-btn">
+                    Login
+                </button>
+
+            </form>
+
+
+            <p id="loginMessage" class="form-message"></p>
+
+
+            <p class="auth-switch">
+                Don't have an account?
+                <a href="signup.html">Create one</a>
+            </p>
+
+        </div>
+
+    </main>
+
+
+    <footer>
+
+        <div class="footer-logo">
+            AI Learning Hub
+        </div>
+
+        <p>
+            Personalized learning powered by your progress.
+        </p>
+
+    </footer>
+
+
+    <script src="js/auth.js"></script>
+
+</body>
+
+</html>
