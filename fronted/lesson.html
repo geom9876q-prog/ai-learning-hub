@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Lesson - AI Learning Hub</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+
+    <nav class="navbar">
+
+        <div class="logo">
+            AI Learning Hub
+        </div>
+
+        <div class="nav-links">
+
+            <a href="dashboard.html">Dashboard</a>
+            <a href="about.html">About</a>
+
+            <button id="logoutBtn" class="logout-btn">
+                Logout
+            </button>
+
+        </div>
+
+    </nav>
+
+
+    <!-- LESSON -->
+
+    <main class="dashboard">
+
+        <section class="dashboard-header">
+
+            <p class="section-tag">
+                LESSON
+            </p>
+
+            <h1 id="lessonTitle">
+                Loading...
+            </h1>
+
+            <p id="lessonDescription">
+                Loading lesson...
+            </p>
+
+        </section>
+
+
+        <!-- LESSON CONTENT -->
+
+        <section class="dashboard-section">
+
+            <div id="lessonContent" class="dashboard-card">
+
+                <p>
+                    Loading lesson content...
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- COMPLETE LESSON -->
+
+        <section class="dashboard-section">
+
+            <div class="dashboard-card">
+
+                <button id="completeLessonBtn" class="auth-btn">
+                    Mark Lesson Complete
+                </button>
+
+                <button
+                    id="quizBtn"
+                    class="auth-btn"
+                    style="margin-top: 10px;">
+                    Take Quiz
+                </button>
+
+                <p id="completionMessage" class="form-message"></p>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <p>
+            © 2026 AI Learning Hub. Learn smarter. Recover faster.
+        </p>
+
+    </footer>
+
+
+    <script src="js/lesson.js"></script>
+
+</body>
+
+</html>

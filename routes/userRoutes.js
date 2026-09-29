@@ -289,11 +289,27 @@ router.post("/learner-profile", authMiddleware, async (req, res) => {
 
     try {
 
-        const result = await db.query(
+            const result = await db.query(
             `INSERT INTO learner_profiles
-            (user_id, career_goal, motivation, current_level,
-             days_to_goal, daily_study_minutes)
+            (
+                user_id,
+                career_goal,
+                motivation,
+                current_level,
+                days_to_goal,
+                daily_study_minutes
+            )
             VALUES ($1, $2, $3, $4, $5, $6)
+
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                career_goal = EXCLUDED.career_goal,
+                motivation = EXCLUDED.motivation,
+                current_level = EXCLUDED.current_level,
+                days_to_goal = EXCLUDED.days_to_goal,
+                daily_study_minutes = EXCLUDED.daily_study_minutes,
+                updated_at = CURRENT_TIMESTAMP
+
             RETURNING *`,
             [
                 userId,

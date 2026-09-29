@@ -107,6 +107,7 @@ router.post("/:id/complete", authMiddleware, async (req, res) => {
     res.status(201).json({
     message: "Lesson completed successfully",
     completion: completionResult.rows[0],
+    learning_memory: summary,
     progress: {
         completed_lessons: completedLessons,
         total_lessons: totalLessons,
@@ -393,6 +394,65 @@ router.post("/:lessonId/quiz/submit", authMiddleware, async (req, res) => {
             message: "Failed to submit quiz"
         });
     }
+});
+
+router.get("/:id", authMiddleware, async (req, res) => {
+
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT
+                lessons.id,
+                lessons.course_id,
+                lessons.title,
+                lessons.description,
+                lessons.content,
+                lessons.video_url,
+                lessons.lesson_order,
+                learning_memory.summary AS learning_memory,
+                lesson_completions.id AS completion_id
+             FROM lessons
+
+             LEFT JOIN learning_memory
+             ON lessons.id = learning_memory.lesson_id
+             AND learning_memory.user_id = $1
+
+             LEFT JOIN lesson_completions
+             ON lessons.id = lesson_completions.lesson_id
+             AND lesson_completions.user_id = $1
+
+             WHERE lessons.id = $2`,
+            [userId, id]
+        );
+
+        if (result.rows.length === 0) {
+
+            return res.status(404).json({
+                message: "Lesson not found"
+            });
+
+        }
+
+        const lesson = result.rows[0];
+
+        res.status(200).json({
+            lesson: lesson,
+            completed: lesson.completion_id !== null
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch lesson"
+        });
+
+    }
+
 });
 
 module.exports = router;
