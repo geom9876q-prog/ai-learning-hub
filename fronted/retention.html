@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Retention Check - AI Learning Hub</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <nav class="navbar">
+
+        <div class="logo">
+            AI Learning Hub
+        </div>
+
+        <div class="nav-links">
+
+            <a href="dashboard.html">
+                Dashboard
+            </a>
+
+            <a href="about.html">
+                About
+            </a>
+
+            <button id="logoutBtn" class="logout-btn">
+                Logout
+            </button>
+
+        </div>
+
+    </nav>
+
+
+    <main class="dashboard">
+
+        <section class="dashboard-header">
+
+            <p class="section-tag">
+                KNOWLEDGE RETENTION
+            </p>
+
+            <h1 id="lessonTitle">
+                Loading...
+            </h1>
+
+            <p>
+                Take this short check to refresh what you learned.
+            </p>
+
+        </section>
+
+
+        <!-- AI NOTES -->
+
+        <section class="dashboard-section">
+
+            <div class="dashboard-card">
+
+                <h2>Quick Review</h2>
+
+                <div id="retentionNotes">
+                    Loading review notes...
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- QUESTIONS -->
+
+        <section class="dashboard-section">
+
+            <div class="dashboard-card">
+
+                <h2>Retention Check</h2>
+
+                <div id="questionsContainer">
+                    Loading questions...
+                </div>
+
+                <button
+                    id="submitRetentionBtn"
+                    class="auth-btn">
+
+                    Submit Retention Check
+
+                </button>
+
+                <p id="resultMessage"></p>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <p>
+            © 2026 AI Learning Hub. Learn smarter. Recover faster.
+        </p>
+
+    </footer>
+
+
+    <script src="js/retention.js"></script>
+
+</body>
+
+</html>

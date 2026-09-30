@@ -78,30 +78,65 @@ async function loadWhereILeftOff() {
 
 async function loadRecommendation() {
 
-    const container = document.getElementById("recommendation");
+    const container =
+        document.getElementById("recommendation");
 
     try {
 
-        const data = await fetchAPI("/next-recommendation");
+        const data =
+            await fetchAPI("/next-recommendation");
 
-        const recommendation = data.recommendation;
+        const recommendation =
+            data.recommendation;
+
 
         if (!recommendation) {
 
             container.innerHTML = `
-                <p>You have completed all available lessons.</p>
+                <p>
+                    You have completed all available lessons.
+                </p>
             `;
 
             return;
         }
 
+
+        let buttonText =
+            "Open Lesson";
+
+
+        if (recommendation.type === "next_lesson") {
+
+            buttonText =
+                "Start Lesson";
+
+        }
+
+
         container.innerHTML = `
-            <h3>${recommendation.lesson_title}</h3>
+
+            <h3>
+                ${recommendation.lesson_title}
+            </h3>
 
             <p>
-                ${recommendation.reason || "Continue with this lesson."}
+                ${recommendation.reason ||
+                "Continue with this lesson."}
             </p>
+
+            <button
+                class="auth-btn"
+                onclick="openRecommendedLesson(
+                    ${recommendation.lesson_id}
+                )">
+
+                ${buttonText}
+
+            </button>
+
         `;
+
 
     } catch (error) {
 
@@ -110,6 +145,13 @@ async function loadRecommendation() {
         `;
 
     }
+}
+
+function openRecommendedLesson(lessonId) {
+
+    window.location.href =
+        `lesson.html?id=${lessonId}`;
+
 }
 
 // =========================
@@ -193,79 +235,154 @@ async function loadMyCourses() {
 
 async function loadLearningRecovery() {
 
-    const container = document.getElementById("learningRecovery");
+    const container =
+        document.getElementById("learningRecovery");
 
     try {
 
-        const data = await fetchAPI("/learning-recovery");
+        const data =
+            await fetchAPI("/learning-recovery");
 
-        container.innerHTML = `
-            <p>
-                ${data.recovery_plan || "No recovery plan available."}
-            </p>
-        `;
 
-    } catch (error) {
+        // No weak areas
 
-        container.innerHTML = `
-            <p>${error.message}</p>
-        `;
-
-    }
-}
-
-// =========================
-// RETENTION CHECK
-// =========================
-
-async function loadRetentionCheck() {
-
-    const container = document.getElementById("retentionCheck");
-
-    try {
-
-        const data = await fetchAPI("/retention-check");
-
-        const lessons = data.lessons_due_for_review;
-
-        if (lessons.length === 0) {
+        if (!data.learning_recovery) {
 
             container.innerHTML = `
                 <p>
-                    No retention checks are due right now.
+                    No weak areas detected.
+                    Keep learning!
                 </p>
             `;
 
             return;
         }
 
+
+        // Show weak topics
+
+        const weakAreas =
+            data.weak_areas;
+
+
         container.innerHTML = `
 
+            <h3>
+                Topics that need attention
+            </h3>
+
+            ${weakAreas.map(area => `
+
+                <div style="margin-top: 15px;">
+
+                    <strong>
+                        ${area.lesson_title}
+                    </strong>
+
+                    <p>
+                        Quiz score:
+                        ${area.score}/${area.total_questions}
+                        (${area.percentage}%)
+                    </p>
+
+                    <button
+                        class="auth-btn"
+                        onclick="openRecoveryLesson(
+                            ${area.lesson_id}
+                        )">
+
+                        Review This Topic
+
+                    </button>
+
+                </div>
+
+            `).join("")}
+
+
+            <hr style="margin: 25px 0;">
+
+
+            <h3>
+                Your Recovery Plan
+            </h3>
+
+            <p>
+                ${data.learning_recovery}
+            </p>
+
+        `;
+
+    } catch (error) {
+
+        container.innerHTML =
+            `<p>${error.message}</p>`;
+
+    }
+}
+
+function openRecoveryLesson(lessonId) {
+
+    window.location.href =
+        `lesson.html?id=${lessonId}`;
+
+}
+
+// =========================
+// RETENTION CHECK
+// =========================
+async function loadRetentionCheck() {
+    const container =
+        document.getElementById("retentionCheck");
+
+    try {
+        const data =
+            await fetchAPI("/retention-check");
+
+        const lessons =
+            data.lessons_due_for_review;
+
+        if (lessons.length === 0) {
+            container.innerHTML = `
+                <p>
+                    No retention checks are due right now.
+                </p>
+            `;
+            return;
+        }
+
+        container.innerHTML = `
             <p>
                 You have ${lessons.length}
                 lesson(s) due for a retention check.
             </p>
 
             ${lessons.map(lesson => `
-
                 <div style="margin-top: 15px;">
 
                     <strong>
                         ${lesson.lesson_title}
                     </strong>
 
+                    <p>
+                        This topic is due for a short
+                        retention check.
+                    </p>
+
+                    <button
+                        class="auth-btn"
+                        onclick="startRetentionCheck(
+                            ${lesson.lesson_id}
+                        )">
+                        Start Retention Check
+                    </button>
+
                 </div>
-
             `).join("")}
-
         `;
-
     } catch (error) {
-
-        container.innerHTML = `
-            <p>${error.message}</p>
-        `;
-
+        container.innerHTML =
+            `<p>${error.message}</p>`;
     }
 }
 

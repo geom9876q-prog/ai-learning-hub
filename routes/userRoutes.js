@@ -574,27 +574,35 @@ router.get("/learning-recovery", authMiddleware, async (req, res) => {
 
 
         // 2. Get quiz performance
-        const result = await db.query(
-            `SELECT
-                lessons.id AS lesson_id,
-                lessons.title AS lesson_title,
-                quizzes.id AS quiz_id,
-                quizzes.title AS quiz_title,
-                quiz_attempts.score,
-                quiz_attempts.total_questions,
-                ROUND(
-                    (quiz_attempts.score::DECIMAL /
-                     quiz_attempts.total_questions) * 100
-                ) AS percentage
-             FROM quiz_attempts
-             JOIN quizzes
-             ON quiz_attempts.quiz_id = quizzes.id
-             JOIN lessons
-             ON quizzes.lesson_id = lessons.id
-             WHERE quiz_attempts.user_id = $1
-             ORDER BY percentage ASC`,
-            [userId]
-        );
+                        const result = await db.query(
+                    `SELECT
+                        lessons.id AS lesson_id,
+                        lessons.title AS lesson_title,
+                        quizzes.id AS quiz_id,
+                        quizzes.title AS quiz_title,
+                        quiz_attempts.score,
+                        quiz_attempts.total_questions,
+                        ROUND(
+                            (quiz_attempts.score::DECIMAL /
+                            quiz_attempts.total_questions) * 100
+                        ) AS percentage
+                    FROM quiz_attempts
+                    JOIN quizzes
+                    ON quiz_attempts.quiz_id = quizzes.id
+                    JOIN lessons
+                    ON quizzes.lesson_id = lessons.id
+                    WHERE quiz_attempts.user_id = $1
+                    AND quiz_attempts.id = (
+                        SELECT qa.id
+                        FROM quiz_attempts qa
+                        WHERE qa.user_id = $1
+                        AND qa.quiz_id = quiz_attempts.quiz_id
+                        ORDER BY qa.attempted_at DESC
+                        LIMIT 1
+                    )
+                    ORDER BY percentage ASC`,
+                    [userId]
+                );
 
 
         // 3. Identify weak areas
