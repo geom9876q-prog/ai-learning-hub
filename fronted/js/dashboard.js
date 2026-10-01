@@ -40,36 +40,60 @@ async function fetchAPI(endpoint) {
 // =========================
 // WHERE I LEFT OFF
 // =========================
+ async function loadWhereILeftOff() {
 
-async function loadWhereILeftOff() {
-
-    const container = document.getElementById("whereLeftOff");
+    const container =
+        document.getElementById("whereLeftOff");
 
     try {
 
-        const data = await fetchAPI("/where-i-left-off");
+        const data =
+            await fetchAPI("/where-i-left-off");
 
-        const lesson = data.where_i_left_off;
+        const lesson =
+            data.where_i_left_off;
+
 
         container.innerHTML = `
-            <h3>${lesson.lesson_title}</h3>
+
+            <h3>
+                ${lesson.lesson_title}
+            </h3>
 
             <p>
                 Course: ${lesson.course_title}
             </p>
 
             <p>
-                ${lesson.summary || "Learning memory available."}
+                ${lesson.summary ||
+                "Learning memory available."}
             </p>
+
+            <button
+                class="auth-btn"
+                onclick="continueLesson(
+                    ${lesson.lesson_id}
+                )">
+
+                Continue Lesson
+
+            </button>
+
         `;
 
     } catch (error) {
 
-        container.innerHTML = `
-            <p>${error.message}</p>
-        `;
+        container.innerHTML =
+            `<p>${error.message}</p>`;
 
     }
+}
+
+function continueLesson(lessonId) {
+
+    window.location.href =
+        `lesson.html?id=${lessonId}`;
+
 }
 
 // =========================

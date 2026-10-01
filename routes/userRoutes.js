@@ -160,7 +160,12 @@ router.get("/my-courses", authMiddleware, async (req, res) => {
     try {
 
         const result = await db.query(
-            `SELECT courses.id, courses.title, courses.description, enrollments.enrolled_at
+            `SELECT
+                courses.id,
+                courses.title,
+                courses.description,
+                enrollments.enrolled_at,
+                enrollments.completed_percentage
              FROM enrollments
              JOIN courses
              ON enrollments.course_id = courses.id
@@ -180,6 +185,7 @@ router.get("/my-courses", authMiddleware, async (req, res) => {
         res.status(500).json({
             message: "Failed to fetch enrolled courses"
         });
+
     }
 });
 
