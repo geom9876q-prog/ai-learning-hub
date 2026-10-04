@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require("cors");
 const db = require('./config/db');
 const app =express();
+const path = require("path");
 
 
 const healthroutes= require('./routes/Healthroutes');
@@ -16,6 +17,12 @@ app.use(healthroutes);
 app.use("/api/users",userRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/lessons", lessonRoutes);
+app.use(
+    "/materials",
+    express.static(
+        path.join(__dirname, "data", "DSA")
+    )
+);
 
 app.get('/',(req,res) =>{
       res.send("welcome to ai learning hub");

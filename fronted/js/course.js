@@ -62,64 +62,95 @@ async function loadCourse() {
 
 
 // =========================
-// LOAD LESSONS
+// LOAD COURSE CONTENT
 // =========================
 
-async function loadLessons() {
+async function loadContent(parentId = null) {
 
     const container =
         document.getElementById("lessonsContainer");
 
     try {
 
-        const response = await fetch(
-            `${COURSE_API_URL}/${courseId}/lessons`
-        );
+        let url =
+            `${COURSE_API_URL}/${courseId}/content`;
+
+        if (parentId !== null) {
+            url += `?parent_id=${parentId}`;
+        }
+
+        const response = await fetch(url, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
 
         const data = await response.json();
 
         if (!response.ok) {
             throw new Error(
-                data.message || "Failed to load lessons"
+                data.message || "Failed to load course content"
             );
         }
 
-        const lessons = data.lessons;
+        const items = data.items;
 
-        if (lessons.length === 0) {
+        if (items.length === 0) {
 
             container.innerHTML = `
-                <p>No lessons available for this course.</p>
+                <p>No content available.</p>
             `;
 
             return;
         }
 
-        container.innerHTML = lessons.map((lesson, index) => `
+        container.innerHTML = items.map(item => {
 
-            <div class="course-card">
+            if (item.type === "folder") {
 
-                <p class="section-tag">
-                    LESSON ${index + 1}
-                </p>
+                return `
+                    <div class="course-card">
 
-                <h3>
-                    ${lesson.title}
-                </h3>
+                        <p class="section-tag">
+                            FOLDER
+                        </p>
 
-                <p>
-                    ${lesson.description || "No description available."}
-                </p>
+                        <h3>
+                            📁 ${item.name}
+                        </h3>
 
-                <button
-                    class="auth-btn"
-                    onclick="openLesson(${lesson.id})">
-                    Open Lesson
-                </button>
+                        <button
+                            class="auth-btn"
+                            onclick="openFolder(${item.id})">
+                            Open Folder
+                        </button>
 
-            </div>
+                    </div>
+                `;
 
-        `).join("");
+            }
+
+            return `
+                <div class="course-card">
+
+                    <p class="section-tag">
+                        MATERIAL
+                    </p>
+
+                    <h3>
+                        📄 ${item.name}
+                    </h3>
+
+                    <button
+                        class="auth-btn"
+                        onclick="openDocument('${item.file_path}')">
+                        Open Material
+                    </button>
+
+                </div>
+            `;
+
+        }).join("");
 
     } catch (error) {
 
@@ -133,17 +164,29 @@ async function loadLessons() {
 
 
 // =========================
-// OPEN LESSON
+// OPEN FOLDER
 // =========================
 
-function openLesson(lessonId) {
+function openFolder(folderId) {
 
-    window.location.href =
-        `lesson.html?id=${lessonId}`;
+    loadContent(folderId);
 }
 
 
 // =========================
+// OPEN DOCUMENT
+// =========================
+
+function openDocument(filePath) {
+
+    const relativePath =
+        filePath.replace("data/DSA/", "");
+
+    window.open(
+        `http://localhost:3000/materials/${relativePath}`,
+        "_blank"
+    );
+}
 // LOGOUT
 // =========================
 
@@ -169,8 +212,7 @@ if (!courseId) {
         "Course not found";
 
 } else {
-
+    
     loadCourse();
-    loadLessons();
-
+    loadContent();
 }

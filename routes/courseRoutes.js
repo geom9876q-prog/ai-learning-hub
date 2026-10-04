@@ -157,6 +157,46 @@ router.delete("/:id", authMiddleware,adminMiddleware, async (req, res) => {
     }
 });
 
+router.get("/:courseId/content", authMiddleware, async (req, res) => {
+    const { courseId } = req.params;
+    const { parent_id } = req.query;
+
+    try {
+        let result;
+
+        if (parent_id) {
+            result = await db.query(
+                `SELECT id, parent_id, name, type, file_path
+                 FROM learning_items
+                 WHERE course_id = $1
+                 AND parent_id = $2
+                 ORDER BY type DESC, name ASC`,
+                [courseId, parent_id]
+            );
+        } else {
+            result = await db.query(
+                `SELECT id, parent_id, name, type, file_path
+                 FROM learning_items
+                 WHERE course_id = $1
+                 AND parent_id IS NULL
+                 ORDER BY type DESC, name ASC`,
+                [courseId]
+            );
+        }
+
+        res.status(200).json({
+            items: result.rows
+        });
+
+    } catch (error) {
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch course content"
+        });
+    }
+});
+
 router.post("/:id/enroll", authMiddleware, async (req, res) => {
 
     const { id } = req.params;
