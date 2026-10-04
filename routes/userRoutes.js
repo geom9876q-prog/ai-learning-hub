@@ -506,7 +506,7 @@ router.get("/learning-plan", authMiddleware, async (req, res) => {
     }
 });
 
-router.get("/weak-areas", authMiddleware, async (req, res) => {
+  router.get("/weak-areas", authMiddleware, async (req, res) => {
 
     const userId = req.user.id;
 
@@ -530,17 +530,30 @@ router.get("/weak-areas", authMiddleware, async (req, res) => {
              JOIN lessons
              ON quizzes.lesson_id = lessons.id
              WHERE quiz_attempts.user_id = $1
+
+             AND quiz_attempts.id = (
+                 SELECT qa.id
+                 FROM quiz_attempts qa
+                 WHERE qa.user_id = $1
+                 AND qa.quiz_id = quiz_attempts.quiz_id
+                 ORDER BY qa.attempted_at DESC
+                 LIMIT 1
+             )
+
+             AND (
+                 quiz_attempts.score::DECIMAL /
+                 quiz_attempts.total_questions
+             ) < 0.60
+
              ORDER BY percentage ASC`,
             [userId]
         );
 
-        const weakAreas = result.rows.filter(
-            attempt => Number(attempt.percentage) < 60
-        );
 
         res.status(200).json({
-            weak_areas: weakAreas
+            weak_areas: result.rows
         });
+
 
     } catch (error) {
 
@@ -549,6 +562,7 @@ router.get("/weak-areas", authMiddleware, async (req, res) => {
         res.status(500).json({
             message: "Failed to detect weak areas"
         });
+
     }
 });
 

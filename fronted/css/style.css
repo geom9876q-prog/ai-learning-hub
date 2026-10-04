@@ -693,6 +693,11 @@ footer {
     color: #1d4ed8;
 }
 
+.dashboard-card .auth-btn {
+    margin-top: 15px;
+    display: inline-block;
+}
+
 
 /* =========================
    DASHBOARD MOBILE

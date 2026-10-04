@@ -264,13 +264,20 @@ async function loadLearningRecovery() {
 
     try {
 
+        // Get weak areas only
+        // This does NOT call Gemini
+
         const data =
-            await fetchAPI("/learning-recovery");
+            await fetchAPI("/weak-areas");
+
+
+        const weakAreas =
+            data.weak_areas;
 
 
         // No weak areas
 
-        if (!data.learning_recovery) {
+        if (!weakAreas || weakAreas.length === 0) {
 
             container.innerHTML = `
                 <p>
@@ -283,11 +290,7 @@ async function loadLearningRecovery() {
         }
 
 
-        // Show weak topics
-
-        const weakAreas =
-            data.weak_areas;
-
+        // Show weak areas
 
         container.innerHTML = `
 
@@ -328,12 +331,27 @@ async function loadLearningRecovery() {
 
 
             <h3>
-                Your Recovery Plan
+                Need help recovering?
             </h3>
 
             <p>
-                ${data.learning_recovery}
+                Generate a personalized recovery plan
+                based on your weak areas.
             </p>
+
+            <button
+                id="generateRecoveryBtn"
+                class="auth-btn"
+                onclick="generateRecoveryPlan()">
+
+                Generate Recovery Plan
+
+            </button>
+
+            <div
+                id="recoveryPlan"
+                style="margin-top: 20px;">
+            </div>
 
         `;
 
@@ -343,6 +361,82 @@ async function loadLearningRecovery() {
             `<p>${error.message}</p>`;
 
     }
+}
+
+async function generateRecoveryPlan() {
+
+    const button =
+        document.getElementById(
+            "generateRecoveryBtn"
+        );
+
+    const container =
+        document.getElementById(
+            "recoveryPlan"
+        );
+
+    try {
+
+        button.disabled = true;
+
+        button.textContent =
+            "Generating...";
+
+
+        // THIS is where Gemini/Groq is called
+
+        const data =
+            await fetchAPI("/learning-recovery");
+
+                    console.log(
+            "Recovery API response:",
+            data
+        );
+
+
+        if (!data.learning_recovery) {
+
+            container.innerHTML = `
+                <p>
+                    No recovery plan is available.
+                </p>
+            `;
+
+            return;
+        }
+
+
+        container.innerHTML = `
+
+            <h3>
+                Your Recovery Plan
+            </h3>
+
+            <p>
+                ${data.learning_recovery}
+            </p>
+
+        `;
+
+        button.textContent =
+            "Regenerate Recovery Plan";
+
+
+    } catch (error) {
+
+        container.innerHTML = `
+            <p>
+                ${error.message}
+            </p>
+        `;
+
+        button.disabled = false;
+
+        button.textContent =
+            "Generate Recovery Plan";
+
+    }
+
 }
 
 function openRecoveryLesson(lessonId) {

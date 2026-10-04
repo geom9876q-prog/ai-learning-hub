@@ -1,4 +1,5 @@
 const API_URL = "http://localhost:3000/api/courses";
+const USERS_API_URL = "http://localhost:3000/api/users";
 
 const token = localStorage.getItem("token");
 
@@ -8,9 +9,7 @@ const token = localStorage.getItem("token");
 // =========================
 
 if (!token) {
-
     window.location.href = "login.html";
-
 }
 
 
@@ -25,22 +24,51 @@ async function loadCourses() {
 
     try {
 
-        const response =
+        // Get all available courses
+
+        const coursesResponse =
             await fetch(API_URL);
 
-        const data =
-            await response.json();
+        const coursesData =
+            await coursesResponse.json();
 
-        if (!response.ok) {
-
+        if (!coursesResponse.ok) {
             throw new Error(
-                data.message || "Failed to load courses"
+                coursesData.message ||
+                "Failed to load courses"
             );
-
         }
 
+
+        // Get courses enrolled by current user
+
+        const enrolledResponse =
+            await fetch(
+                `${USERS_API_URL}/my-courses`,
+                {
+                    headers: {
+                        "Authorization":
+                            `Bearer ${token}`
+                    }
+                }
+            );
+
+        const enrolledData =
+            await enrolledResponse.json();
+
+        if (!enrolledResponse.ok) {
+            throw new Error(
+                enrolledData.message ||
+                "Failed to load enrolled courses"
+            );
+        }
+
+
         const courses =
-            data.courses;
+            coursesData.courses;
+
+        const enrolledCourses =
+            enrolledData.courses;
 
 
         if (courses.length === 0) {
@@ -55,35 +83,82 @@ async function loadCourses() {
         }
 
 
+        // Store enrolled course IDs
+
+        const enrolledCourseIds =
+            new Set(
+                enrolledCourses.map(
+                    course => Number(course.id)
+                )
+            );
+
+
+        // Display courses
+
         container.innerHTML =
-            courses.map(course => `
+            courses.map(course => {
 
-                <div class="course-card">
+                const isEnrolled =
+                    enrolledCourseIds.has(
+                        Number(course.id)
+                    );
 
-                    <p class="section-tag">
-                        COURSE
-                    </p>
 
-                    <h3>
-                        ${course.title}
-                    </h3>
+                return `
 
-                    <p>
-                        ${course.description ||
-                        "No description available."}
-                    </p>
+                    <div class="course-card">
 
-                    <button
-                        class="auth-btn"
-                        onclick="enrollCourse(${course.id})">
+                        <p class="section-tag">
+                            COURSE
+                        </p>
 
-                        Enroll
+                        <h3>
+                            ${course.title}
+                        </h3>
 
-                    </button>
+                        <p>
+                            ${course.description ||
+                            "No description available."}
+                        </p>
 
-                </div>
 
-            `).join("");
+                        ${
+                            isEnrolled
+
+                            ?
+
+                            `
+                                <button
+                                    class="auth-btn"
+                                    onclick="openCourse(
+                                        ${course.id}
+                                    )">
+
+                                    ✓ Enrolled
+
+                                </button>
+                            `
+
+                            :
+
+                            `
+                                <button
+                                    class="auth-btn"
+                                    onclick="enrollCourse(
+                                        ${course.id}
+                                    )">
+
+                                    Enroll
+
+                                </button>
+                            `
+                        }
+
+                    </div>
+
+                `;
+
+            }).join("");
 
 
     } catch (error) {
@@ -142,8 +217,10 @@ async function enrollCourse(courseId) {
         );
 
 
-        window.location.href =
-            `course.html?id=${courseId}`;
+        // Reload course list
+        // so button changes to "✓ Enrolled"
+
+        loadCourses();
 
 
     } catch (error) {
@@ -153,6 +230,18 @@ async function enrollCourse(courseId) {
         alert(error.message);
 
     }
+
+}
+
+
+// =========================
+// OPEN COURSE
+// =========================
+
+function openCourse(courseId) {
+
+    window.location.href =
+        `course.html?id=${courseId}`;
 
 }
 
@@ -179,4 +268,5 @@ document
 // =========================
 // START
 // =========================
+
 loadCourses();
