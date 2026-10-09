@@ -384,6 +384,75 @@ async function generateRetentionQuiz(lesson) {
 }
 
 
+async function generateDSATopicQuiz(topicName) {
+    const prompt = `
+You are an experienced Data Structures and Algorithms instructor.
+
+Generate a fresh multiple-choice quiz about this topic: "${topicName}".
+
+Requirements:
+- Generate exactly 5 questions.
+- Test understanding and practical problem-solving.
+- Each question must have exactly four options.
+- Include exactly one correct answer per question.
+- Use different questions and scenarios when generating a new quiz.
+- Do not claim to use specific course notes or documents.
+- Return only valid JSON, without markdown fences.
+
+Use this exact structure:
+{
+  "title": "Quiz title",
+  "questions": [
+    {
+      "question": "Question text",
+      "option_a": "Option A",
+      "option_b": "Option B",
+      "option_c": "Option C",
+      "option_d": "Option D",
+      "correct_option": "A"
+    }
+  ]
+}
+`;
+
+    let text = await generateAIText(prompt);
+    text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+
+    if (start === -1 || end === -1) {
+        throw new Error("AI returned invalid quiz JSON");
+    }
+
+    const quiz = JSON.parse(text.slice(start, end + 1));
+
+    if (
+        !quiz.title ||
+        !Array.isArray(quiz.questions) ||
+        quiz.questions.length !== 5
+    ) {
+        throw new Error("AI returned an invalid quiz structure");
+    }
+
+    for (const q of quiz.questions) {
+        if (
+            !q.question ||
+            !q.option_a ||
+            !q.option_b ||
+            !q.option_c ||
+            !q.option_d ||
+            !["A", "B", "C", "D"].includes(q.correct_option)
+        ) {
+            throw new Error("AI returned an incomplete quiz question");
+        }
+    }
+
+    return quiz;
+}
+
+
+
 // =====================================================
 // EXPORT
 // =====================================================
@@ -396,6 +465,8 @@ module.exports = {
 
     generateRecoveryPlan,
 
-    generateRetentionQuiz
+    generateRetentionQuiz,
+
+    generateDSATopicQuiz
 
 };

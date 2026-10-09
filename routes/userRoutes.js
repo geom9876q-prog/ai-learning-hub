@@ -1130,4 +1130,169 @@ router.post(
     }
 );
 
+
+router.post("/learning-item/:itemId/complete", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const itemId = req.params.itemId;
+
+    try {
+        // 1. Check that the learning item exists
+        const itemResult = await db.query(
+            `SELECT id, name, type, course_id, parent_id
+             FROM learning_items
+             WHERE id = $1`,
+            [itemId]
+        );
+
+        if (itemResult.rows.length === 0) {
+            return res.status(404).json({
+                message: "Learning item not found"
+            });
+        }
+
+        const item = itemResult.rows[0];
+
+        // 2. Only folders can be completed
+        if (item.type !== "folder") {
+            return res.status(400).json({
+                message: "Only folders can be marked as complete"
+            });
+        }
+
+        // 3. Check course enrollment
+        const enrollmentResult = await db.query(
+            `SELECT id
+             FROM enrollments
+             WHERE user_id = $1
+               AND course_id = $2`,
+            [userId, item.course_id]
+        );
+
+        if (enrollmentResult.rows.length === 0) {
+            return res.status(403).json({
+                message: "Enroll in this course before completing topics"
+            });
+        }
+
+        // 4. Save completion without creating duplicates
+        const result = await db.query(
+            `INSERT INTO learning_item_completions
+                (user_id, learning_item_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id, learning_item_id) DO NOTHING
+             RETURNING *`,
+            [userId, itemId]
+        );
+
+        // 5. Count top-level topic folders
+        const totalResult = await db.query(
+            `SELECT COUNT(*) AS total
+             FROM learning_items
+             WHERE course_id = $1
+               AND parent_id IS NULL
+               AND type = 'folder'`,
+            [item.course_id]
+        );
+
+        // 6. Find which top-level topics this user has completed.
+        // A completed nested folder counts toward its root topic.
+        const completedResult = await db.query(
+            `WITH RECURSIVE completed_topics AS (
+                SELECT
+                    li.id,
+                    li.parent_id,
+                    lic.user_id,
+                    li.course_id
+                FROM learning_item_completions lic
+                JOIN learning_items li
+                    ON li.id = lic.learning_item_id
+                WHERE lic.user_id = $1
+                  AND li.course_id = $2
+                  AND li.type = 'folder'
+
+                UNION ALL
+
+                SELECT
+                    parent.id,
+                    parent.parent_id,
+                    ct.user_id,
+                    ct.course_id
+                FROM completed_topics ct
+                JOIN learning_items parent
+                    ON parent.id = ct.parent_id
+            )
+            SELECT COUNT(DISTINCT id) AS completed
+            FROM completed_topics
+            WHERE parent_id IS NULL`,
+            [userId, item.course_id]
+        );
+
+        const total = Number(totalResult.rows[0].total);
+        const completed = Number(completedResult.rows[0].completed);
+
+        const percentage = total > 0
+            ? Math.round((completed / total) * 100)
+            : 0;
+
+        // 7. Update this user's progress for this course
+        await db.query(
+            `UPDATE enrollments
+             SET completed_percentage = $1
+             WHERE user_id = $2
+               AND course_id = $3`,
+            [percentage, userId, item.course_id]
+        );
+
+        // 8. Return updated progress
+        res.status(result.rows.length > 0 ? 201 : 200).json({
+            message: result.rows.length > 0
+                ? "Learning topic completed successfully"
+                : "Learning topic was already completed",
+
+            completion: result.rows[0] || null,
+
+            progress: {
+                completed_topics: completed,
+                total_topics: total,
+                completed_percentage: percentage
+            }
+        });
+
+    } catch (error) {
+        console.error("Complete learning item error:", error.message);
+
+        res.status(500).json({
+            message: "Failed to complete learning topic"
+        });
+    }
+});
+
+
+
+router.get("/learning-items/completed", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+
+        const result = await db.query(
+            `SELECT learning_item_id
+             FROM learning_item_completions
+             WHERE user_id = $1`,
+            [userId]
+        );
+
+        res.status(200).json({
+            completed_items: result.rows
+        });
+
+    } catch (error) {
+
+        console.error(error.message);
+
+        res.status(500).json({
+            message: "Failed to fetch completed learning topics"
+        });
+    }
+});
+
 module.exports = router;

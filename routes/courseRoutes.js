@@ -1,5 +1,6 @@
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
+const { generateDSATopicQuiz } = require("../services/aiService");
 
 const express = require("express");
 const db = require("../config/db");
@@ -456,5 +457,160 @@ router.get("/:id/progress", authMiddleware, async (req, res) => {
         });
     }
 });
+
+
+router.post("/learning-items/:itemId/quiz", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const itemId = req.params.itemId;
+
+    try {
+        const itemResult = await db.query(
+            `SELECT id, name, type, course_id
+             FROM learning_items
+             WHERE id = $1`,
+            [itemId]
+        );
+
+        if (!itemResult.rows.length) {
+            return res.status(404).json({ message: "Topic not found" });
+        }
+
+        const item = itemResult.rows[0];
+
+        if (item.type !== "folder") {
+            return res.status(400).json({ message: "Select a topic folder" });
+        }
+
+        const enrollment = await db.query(
+            `SELECT id FROM enrollments
+             WHERE user_id = $1 AND course_id = $2`,
+            [userId, item.course_id]
+        );
+
+        if (!enrollment.rows.length) {
+            return res.status(403).json({ message: "Enroll in this course first" });
+        }
+
+        // A fresh AI generation request is made on every click.
+        const generated = await generateDSATopicQuiz(item.name);
+
+        const quizResult = await db.query(
+            `INSERT INTO dsa_quizzes (user_id, learning_item_id, title)
+             VALUES ($1, $2, $3)
+             RETURNING id, title`,
+            [userId, itemId, generated.title]
+        );
+
+        const quiz = quizResult.rows[0];
+
+        for (const q of generated.questions) {
+            await db.query(
+                `INSERT INTO dsa_quiz_questions
+                 (quiz_id, question, option_a, option_b, option_c, option_d, correct_option)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [
+                    quiz.id, q.question, q.option_a, q.option_b,
+                    q.option_c, q.option_d, q.correct_option
+                ]
+            );
+        }
+
+        const questions = await db.query(
+            `SELECT id, question, option_a, option_b, option_c, option_d
+             FROM dsa_quiz_questions
+             WHERE quiz_id = $1
+             ORDER BY id`,
+            [quiz.id]
+        );
+
+        res.status(201).json({
+            quiz: {
+                id: quiz.id,
+                title: quiz.title,
+                item_id: Number(itemId),
+                questions: questions.rows
+            }
+        });
+    } catch (error) {
+        console.error("DSA quiz generation failed:", error.message);
+        res.status(502).json({
+            message: "Could not generate a new AI quiz. Please try again."
+        });
+    }
+});
+
+
+router.post("/learning-items/:itemId/quiz/:quizId/submit", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const { itemId, quizId } = req.params;
+    const answers = req.body.answers;
+
+    if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+        return res.status(400).json({ message: "Invalid answers" });
+    }
+
+    try {
+        const quizResult = await db.query(
+            `SELECT q.id, q.user_id, q.learning_item_id
+             FROM dsa_quizzes q
+             JOIN enrollments e
+               ON e.course_id = (
+                   SELECT course_id FROM learning_items WHERE id = q.learning_item_id
+               )
+             WHERE q.id = $1
+               AND q.learning_item_id = $2
+               AND q.user_id = $3
+               AND e.user_id = $3`,
+            [quizId, itemId, userId]
+        );
+
+        if (!quizResult.rows.length) {
+            return res.status(404).json({ message: "Quiz not found" });
+        }
+
+        const questions = await db.query(
+            `SELECT id, correct_option
+             FROM dsa_quiz_questions
+             WHERE quiz_id = $1`,
+            [quizId]
+        );
+
+        if (!questions.rows.length) {
+            return res.status(400).json({ message: "Quiz has no questions" });
+        }
+
+        let score = 0;
+
+        for (const question of questions.rows) {
+            if (answers[question.id] === question.correct_option) {
+                score++;
+            }
+        }
+
+        const total = questions.rows.length;
+
+        const attempt = await db.query(
+            `INSERT INTO dsa_quiz_attempts
+             (user_id, quiz_id, score, total_questions)
+             VALUES ($1, $2, $3, $4)
+             RETURNING id, score, total_questions, attempted_at`,
+            [userId, quizId, score, total]
+        );
+
+        res.status(201).json({
+            message: "Quiz submitted successfully",
+            result: {
+                score,
+                total_questions: total,
+                percentage: Math.round((score / total) * 100)
+            },
+            attempt: attempt.rows[0]
+        });
+    } catch (error) {
+        console.error("DSA quiz submission failed:", error.message);
+        res.status(500).json({ message: "Failed to submit quiz" });
+    }
+});
+
 
 module.exports = router;
